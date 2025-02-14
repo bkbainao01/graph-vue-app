@@ -2,7 +2,6 @@
 import { shallowRef, onMounted } from 'vue';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, LineController } from 'chart.js';
 import { LineChart } from 'vue-chart-3';
-import { faker } from '@faker-js/faker'; // Import faker for generating fake data
 
 // ✅ Explicitly register the LineController and required components
 ChartJS.register(
@@ -16,28 +15,6 @@ ChartJS.register(
   LineController
 );
 
-// Generate 6150 unique fake data points
-const generateFakeData = (total = 100) => {
-  const fakeData = [];
-  const existingXValues = new Set(); // Track x values to avoid duplicates
-
-  let counter = 0;
-  while (counter <= total) {
-    counter++
-    const xValue = faker.number.int({ min: 0, max: 61650 }); // Generate unique x-values based on counter
-    const yValue = faker.number.int({ min: 0, max: 60 }); // Random y value between 0 and 100
-    const date = faker.date.past(1).toISOString().slice(0, 10); // Generate a random date in ISO format (e.g., '2023-10-23')
-
-    // Check if x value already exists (preventing duplicates)
-    if (!existingXValues.has(xValue)) {
-      fakeData.push({ x: xValue, y: yValue, date: date });
-      existingXValues.add(xValue); // Mark the x value as used
-      counter++;
-    }
-  }
-  return fakeData;
-};
-
 // Initialize chartData with 6150 fake data points
 const chartData = shallowRef({
   labels: [], // Empty initially
@@ -46,7 +23,7 @@ const chartData = shallowRef({
       label: 'Live Data',
       backgroundColor: 'rgba(75, 192, 192, 0.2)',
       borderColor: 'rgba(75, 192, 192, 1)',
-      data: generateFakeData(), // Generate fake data
+      data: data, // Generate fake data
       fill: false,
       tension: 0.4
     }
@@ -105,24 +82,6 @@ const options = shallowRef({
 
 // Progressive data update
 onMounted(() => {
-  let counter = 10; // Start at the last generated data index
-  setInterval(() => {
-    const newXValue = counter;
-    const newYValue = faker.number.int({ min: 0, max: 100 }); // Random y value
-    const newDate = faker.date.past(1).toISOString().slice(0, 10); // Random date
-
-    // Add new data point
-    chartData.value.labels.push(newDate);
-    chartData.value.datasets[0].data.push({ x: newXValue, y: newYValue, date: newDate });
-
-    // Keep only the last 10 data points
-    if (chartData.value.labels.length > 10) {
-      chartData.value.labels.shift();
-      chartData.value.datasets[0].data.shift();
-    }
-
-    counter++;
-  }, 2000); // Update every 2 seconds
 });
 </script>
 
