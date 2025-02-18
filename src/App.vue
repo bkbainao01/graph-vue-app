@@ -1,12 +1,10 @@
 <script setup>
-import { shallowRef, onMounted, reactive } from 'vue';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, LineController,ScatterController  } from 'chart.js';
-import { LineChart,ScatterChart } from 'vue-chart-3';
-import { faker } from '@faker-js/faker'; // Import faker for generating fake data
-import moment from 'moment';
+import { onMounted, ref } from 'vue';
+import { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, LineController, ScatterController } from 'chart.js';
+import ScatterChartComponent from './components/ScatterChartComponent.vue';
+import LineChartComponent from './components/LineChartComponent.vue';
 
-// ✅ Explicitly register the LineController and required components
-ChartJS.register(
+Chart.register(
   CategoryScale,
   LinearScale,
   PointElement,
@@ -18,139 +16,107 @@ ChartJS.register(
   ScatterController,
 );
 
-function getRandomInt(max) {
-    return Math.random() * max;
-}
-// Generate 6150 unique fake data points
-const generateFakeData = (prev= 200,nums = 1000) => {
-  let yearInit = 2020
-  let dateInit = 1
-  const data = [];
-  for (let i = 1; i <= 2000; i++) {
-    prev += nums-(Math.random() * 10);
-    data.push({ x: prev, y: i , date:`${yearInit}-1-${dateInit}`});
-    if(i % 10 === 0){
-      yearInit++
-    }
-  }
-  return data
+const sortData = (list1 = [], list2 = []) => {
+    const list = [...list1, ...list2];
+    return list.sort((a, b) => (a.year === b.year ? a.x - b.x : a.year - b.year));
 };
 
-const dataObj = reactive({
-  data1: generateFakeData(200,1500),
-  data2: generateFakeData(300,1200)
-})
+const generateData = (initialValue, increment, count, yearStart) => {
+    const data = [];
+    let value = initialValue;
+    let year = yearStart;
 
-
-// Initialize chartData with 6150 fake data points
-const chartData0 = shallowRef({
-  datasets: [
-    {
-      label: 'Scatter Dataset',
-      borderColor: 'rgba(75, 192, 192, 1)',
-      data: dataObj.data1, // Generate fake data
-      fill: true,
-      backgroundColor: 'rgba(75, 192, 192, 0.2)',
+    for (let i = 1; i <= count; i++) {
+        value += increment - Math.random() * 10;
+        data.push({ x: value, y: i, date: '12-01-2023', year });
+        if (i % 10 === 0) year++;
     }
-  ]
-});
 
-const chartData1 = shallowRef({
-  datasets: [
-  {
-    label: 'Choke Size (%)',
-    borderColor: 'orange',
-    data: dataObj.data1,
-    fill:true,
-    backgroundColor: ['rgba(251, 192, 147,0.2)'], // Add transparency
-    radius: 0,
+    return data;
+};
 
-  },
-  {
-    label: 'WHFP',
-    backgroundColor: 'grey', // Make this semi-transparent
-    borderColor: 'grey',
-    data: dataObj.data2,
-    fill: true, // Ensure this dataset does NOT fill
-    radius: 0,
-  },
-]
-
-});
-
-const sortData = (list1=[], list2=[]) =>{
-    const list = [...list1 , ...list2]
-    return list.sort((a,b)=>{
-      const dateA = moment(a.date,'YYYY-M-D'); // Parse date using moment
-      const dateB = moment(b.date,'YYYY-M-D'); // Parse date using moment
-      if (dateA < dateB) {
-        return -1
-      } else if (dateB < dateA) {
-          return 1
-      } else {
-          return 0
-      }
-    })
-}
+const data = generateData(200, 1500, 2000, 2023);
+const data2 = generateData(300, 1200, 2000, 2023);
 
 const getListOfXData = (sortedData = []) => {
     const years = [];
     const valueList = [];
     sortedData.forEach(element => {
-        const year = moment(element.date,'YYYY-M-D').format('YYYY');
-        if (years.length === 0 || !years.includes(year)) {
-            element.year = year
-            valueList.push(element)
-            years.push(year)
+        if (!years.includes(element.year)) {
+            valueList.push(element);
+            years.push(element.year);
         }
     });
     return valueList;
-}
+};
+
+const totalDuration = 10000;
+const delayBetweenPoints = totalDuration / data.length;
+
+const previousY = (ctx) => ctx.index === 0 ? ctx.chart.scales.y.getPixelForValue(100) : ctx.chart.getDatasetMeta(ctx.datasetIndex).data[ctx.index - 1].getProps(['y'], true).y;
+
+const animation = {
+    x: {
+        type: 'number',
+        easing: 'linear',
+        duration: delayBetweenPoints,
+        from: NaN,
+        delay(ctx) {
+            if (ctx.type !== 'data' || ctx.xStarted) return 0;
+            ctx.xStarted = true;
+            return ctx.index * delayBetweenPoints;
+        }
+    },
+    y: {
+        type: 'number',
+        easing: 'linear',
+        duration: delayBetweenPoints,
+        from: previousY,
+        delay(ctx) {
+            if (ctx.type !== 'data' || ctx.yStarted) return 0;
+            ctx.yStarted = true;
+            return ctx.index * delayBetweenPoints;
+        }
+    }
+};
 
 const lineMarker = {
     id: 'lineMarker',
-    beforeDatasetsDraw: (chart, args, plugins) => {
+    beforeDatasetsDraw: (chart) => {
         const { ctx, chartArea: { top, bottom, right, left }, scales: { x } } = chart;
-        const sortList = sortData(dataObj.data1, dataObj.data2);
+        const sortList = sortData(data, data2);
         const verticalLines = getListOfXData(sortList);
         ctx.save();
         verticalLines.forEach(line => {
             const xPosition = x.getPixelForValue(line.x);
-            if(xPosition < left || xPosition > right ) {
-                return;
-            }
+            if (xPosition < left || xPosition > right) return;
 
-            // Clip to chart area to prevent overflow
             ctx.save();
             ctx.beginPath();
             ctx.rect(left, top, right - left, bottom - top);
             ctx.clip();
-            // Draw the vertical line
             ctx.beginPath();
             ctx.lineWidth = 1;
             ctx.strokeStyle = '#d0afe1';
-            ctx.setLineDash([5, 5]);
+            ctx.setLineDash([6, 10]);
             ctx.moveTo(xPosition, top);
             ctx.lineTo(xPosition, bottom);
             ctx.stroke();
 
-            // Draw rounded pill for year label
             const pillWidth = 40;
             const pillHeight = 20;
-            let pillX = xPosition - pillWidth / 2;
-            const pillY = top + 3; // Inside the graph area
+            const pillX = xPosition - pillWidth / 2;
+            const pillY = top + 3;
 
-            // Draw pill background behind the gridlines
             ctx.beginPath();
             ctx.fillStyle = 'rgba(0,0,0,0.8)';
             ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-            ctx.setLineDash([0, 0]);
+            ctx.setLineDash([]);
             ctx.lineWidth = 0;
             ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 10);
             ctx.fill();
             ctx.stroke();
 
-            // Render year text inside pill
             ctx.fillStyle = 'white';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -158,289 +124,217 @@ const lineMarker = {
         });
         ctx.restore();
     }
+};
+
+const hoverLine = {
+    id: 'hoverLine',
+    beforeDatasetsDraw: (chart) => {
+        const { ctx, tooltip, chartArea: { top, bottom }, scales: { x } } = chart;
+        if (tooltip._active.length) {
+            const xCoor = x.getPixelForValue(tooltip.dataPoints[0].parsed.x);
+            ctx.save();
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'grey';
+            ctx.moveTo(xCoor, top);
+            ctx.lineTo(xCoor, bottom);
+            ctx.stroke();
+        }
+    }
+};
+
+const createChartConfig = (type, datasets, options, plugins) => ({
+    type,
+    data: { datasets },
+    options,
+    plugins
+});
+
+const scatterGraphOptions = {
+    responsive: false,
+    maintainAspectRatio: false,
+    interaction: {
+        mode: 'nearest',
+        axis: 'xy',
+        intersect: false
+    },
+    scales: {
+        x: {
+            min: 0,
+            max: 61650,
+            ticks: { stepSize: 12330 },
+            title: {
+                display: true,
+                text: 'Gp (MMscf)',
+                padding: { top: 10, bottom: 30 }
+            }
+        },
+        y: {
+            min: 0,
+            max: 100,
+            ticks: { stepSize: 20 },
+            title: {
+                display: true,
+                text: 'Qg_n (MMscfd)',
+                padding: { top: 10, bottom: 30 }
+            }
+        },
+        y2: {
+            min: 0,
+            max: 100,
+            position: 'right',
+            ticks: { stepSize: 20 },
+            title: {
+                display: true,
+                text: 'Qg_n (MMscfd)',
+                padding: { top: 10, bottom: 30 }
+            }
+        }
+    },
+    plugins: {
+        tooltip: {
+            mode: 'nearest',
+            axis: 'xy',
+            intersect: false,
+            callbacks: {
+                title: (context) => {
+                    const item = context?.length ? context[0] : {};
+                    return Object.keys(item)?.length ? `${item.dataset?.label}\nQg_n: ${item.raw?.y}\nGp: ${item.raw?.x}\nDate: ${item.raw?.date || '-'}` : '';
+                },
+                label: () => ''
+            }
+        },
+        legend: { display: false },
+        lineMarker: { borderColor: 'grey', borderWidth: 1, borderDash: [6, 10] },
+        hoverLine: {}
+    },
+    events: ['mousemove', 'mouseout', 'click']
+};
+
+const lineGraphOptions = {
+    responsive: false,
+    aspectRatio: 2,
+    maintainAspectRatio: false,
+    devicePixelRatio: 4,
+    animation,
+    interaction: {
+        mode: 'nearest',
+        axis: 'xy',
+        intersect: false
+    },
+    plugins: {
+        legend: true,
+        tooltip: {
+            mode: 'nearest',
+            axis: 'xy',
+            intersect: false,
+            callbacks: {
+                title: (context) => {
+                    const item = context?.length ? context[0] : {};
+                    return Object.keys(item)?.length ? `${item.dataset?.label}\nWHFP: ${item.raw?.y}\nWGR: ${item.raw?.x}\nDate: ${item.raw?.date || '-'}` : '';
+                },
+                label: () => ''
+            }
+        },
+        hoverLine: {}
+    },
+    events: ['mousemove', 'mouseout', 'click'],
+    scales: {
+        x: {
+            type: 'linear',
+            min: 0,
+            max: 61650,
+            ticks: { stepSize: 12330 },
+            title: {
+                display: true,
+                text: 'WGR',
+                padding: { top: 10, bottom: 30 }
+            }
+        },
+        y: {
+            min: 0,
+            max: 100,
+            ticks: { stepSize: 20 },
+            title: {
+                display: true,
+                text: 'WHFP (barg)',
+                padding: { top: 10, bottom: 30 }
+            }
+        },
+        y2: {
+            position: 'right',
+            min: 0,
+            max: 100,
+            ticks: { stepSize: 20 },
+            title: {
+                display: true,
+                text: 'WHFP (barg)',
+                padding: { top: 10, bottom: 30 }
+            }
+        }
+    }
+};
+
+const scatterGraphConfig = createChartConfig('scatter', [
+    { label: 'Gas', data, backgroundColor: 'rgb(0, 0, 10, 0.2)' },
+    { label: 'Test', data: data2, backgroundColor: 'rgb(165,143,236,0.5)' }
+], scatterGraphOptions, [lineMarker, hoverLine]);
+
+const lineGraphConfig1 = createChartConfig('line', [
+    { borderColor: 'orange', borderWidth: 1, radius: 0, data, label: 'Choke Size (%)', fill: true, backgroundColor: 'rgba(251, 192, 147,0.2)' },
+    { borderColor: 'grey', borderWidth: 1, radius: 0, data: data2, label: 'WHFP', fill: false, backgroundColor: 'grey' }
+], lineGraphOptions, [hoverLine]);
+
+const lineGraphConfig2 = createChartConfig('line', [
+    { borderColor: 'blue', borderWidth: 1, radius: 0, data, label: 'WGR', fill: false, backgroundColor: 'blue' },
+    { borderColor: 'grey', borderWidth: 1, radius: 0, data: data2, label: 'WGR2', fill: false, backgroundColor: 'grey', display: false }
+], lineGraphOptions, [hoverLine]);
+
+const chart1 = ref(null);
+const chart2 = ref(null);
+const chart3 = ref(null);
+
+const handleRefReceive = (evt)=>{
+console.log("🚀 ~ handleRefReceive ~ evt:", evt)
+
 }
 
-const chartData2 = shallowRef({
-  labels: [], // Empty initially
-  datasets: [
-    {
-      label: 'WGR',
-      backgroundColor: 'rgb(0,0,128,0.8)',
-      borderColor: 'rgb(0,0,128)',
-      data: dataObj.data1, // Generate fake data
-      fill: false,
-      tension: 0.4,
-      radius:0
+
+const hover = (move, chartP1, chartP2, chartP3) => {
+    console.log("🚀 ~ hover ~ move, chartP1, chartP2, chartP3:", move, chartP1, chartP2, chartP3)
+    const points = chartP1.getElementsAtEventForMode(move, 'nearest', { intersect: true }, true);
+    if (points[0]) {
+        const dataset = points[0].datasetIndex;
+        const datapoints = points[0].index;
+
+        chartP2?.tooltip.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP2?.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP2?.update();
+
+        chartP3?.tooltip.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP3?.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP3?.update();
+    } else {
+        chartP2?.tooltip.setActiveElements([], { x: 0, y: 0 });
+        chartP2?.setActiveElements([], { x: 0, y: 0 });
+        chartP2?.update();
+
+        chartP3?.tooltip.setActiveElements([], { x: 0, y: 0 });
+        chartP3?.setActiveElements([], { x: 0, y: 0 });
+        chartP3?.update();
     }
-  ]
-});
+};
 
-
-// Chart options
-const options0 = shallowRef({
-  responsive: false,
-  maintainAspectRatio:false,
-  scales: {
-    x: {
-      beginAtZero: true,
-      min:0,
-      max:61650,
-      type: 'linear', // Use linear scale for x-axis
-      ticks: {
-          stepSize: 12330
-      },
-      title: {
-        display: true,
-        text: 'Gp (MMscf)'
-      }
-    },
-    y: {
-      beginAtZero: true,
-      min:0,
-      max:100,
-      ticks: {
-        stepSize: 20
-      },
-      title: {
-        display: true,
-        text: 'Qg_n(MMscfd)'
-      }
-    },
-    y2: {
-      beginAtZero: true,
-      min:0,
-      max:100,
-      ticks: {
-        stepSize: 20
-      },
-      position:'right',
-      title: {
-        display: true,
-        text: 'Qg_n(MMscfd)'
-      }
-    }
-  },
-  plugins: {
-    tooltip: {
-                mode: 'interpolate',
-                intersect: false,
-                callbacks: {
-                    title: function async(context) {
-                        const item = context?.length ? context[0] : {}
-                        return Object.keys(item)?.length ? `${item.dataset?.label}\nQg_n: ${item.raw?.y}\nGp: ${item.raw?.x}\nDate: ${item.raw?.date || '-'}` : ''
-                    },
-                    label: function (context) {
-                        return false;
-                    }
-                }
-            },
-    legend:{
-      display:false
-    },
-    lineMarker:{},
-    crosshair: {
-        line: {
-          enabled: true,
-          color: '#F66',  // crosshair line color
-          width: 1        // crosshair line width
-        },
-        sync: {
-          enabled: true,            // enable trace line syncing with other charts
-          group: 1,                 // chart group
-          suppressTooltips: false   // suppress tooltips when showing a synced tracer
-        },
-        zoom: {
-          enabled: false,                                      // enable zooming
-          zoomboxBackgroundColor: 'rgba(66,133,244,0.2)',     // background color of zoom box
-          zoomboxBorderColor: '#48F',                         // border color of zoom box
-          zoomButtonText: 'Reset Zoom',                       // reset zoom button text
-          zoomButtonClass: 'reset-zoom',                      // reset zoom button class
-        },
-      }
-  }
-});
-
-const options1 = shallowRef({
-  responsive: false,
-  maintainAspectRatio:false,
-  scales: {
-    x: {
-      beginAtZero: true,
-      min:0,
-      max:61650,
-      type: 'linear', // Use linear scale for x-axis
-      ticks: {
-          stepSize: 12330
-      },
-      title: {
-        display: true,
-        text: 'Gp (MMscf)'
-      }
-    },
-    y: {
-      beginAtZero: true,
-      min:0,
-      max:100,
-      ticks: {
-        stepSize: 20
-      },
-      title: {
-        display: true,
-        text: 'Choke Size (%)'
-      }
-    },
-    y2: {
-      beginAtZero: true,
-      min:0,
-      max:100,
-      ticks: {
-        stepSize: 20
-      },
-      position:'right',
-      title: {
-        display: true,
-        text: 'Choke Size (%)'
-      }
-    }
-  },
-  plugins:{
-    tooltip: {
-                mode: 'interpolate',
-                intersect: false,
-                callbacks: {
-                    title: function async(context) {
-                        const item = context?.length ? context[0] : {}
-                        return Object.keys(item)?.length ? `${item.dataset?.label}\nQg_n: ${item.raw?.y}\nGp: ${item.raw?.x}\nDate: ${item.raw?.date || '-'}` : ''
-                    },
-                    label: function (context) {
-                        return false;
-                    }
-                }
-            },
-    crosshair: {
-        line: {
-          enabled: true,
-          color: '#F66',
-          width: 1
-        },
-        sync: {
-          enabled: true,
-          group: 1,
-          suppressTooltips: false
-        },
-      }
-  }
-});
-
-const options2 = shallowRef({
-  responsive: false,
-  maintainAspectRatio:false,
-  scales: {
-    x: {
-      beginAtZero: true,
-      min:0,
-      max:61650,
-      type: 'linear', // Use linear scale for x-axis
-      ticks: {
-          stepSize: 12330
-      },
-      title: {
-        display: true,
-        text: 'X Value'
-      }
-    },
-    y: {
-      beginAtZero: true,
-      min:0,
-      max:100,
-      ticks: {
-        stepSize: 20
-      },
-      title: {
-        display: true,
-        text: 'Y Value'
-      }
-    },
-    y2: {
-      beginAtZero: true,
-      min:0,
-      max:100,
-      ticks: {
-        stepSize: 20
-      },
-      position:'right',
-      title: {
-        display: true,
-        text: 'Y Value'
-      }
-    }
-  },
-  plugins:{
-    tooltip: {
-                mode: 'interpolate',
-                intersect: false,
-                callbacks: {
-                    title: function async(context) {
-                        const item = context?.length ? context[0] : {}
-                        return Object.keys(item)?.length ? `${item.dataset?.label}\nQg_n: ${item.raw?.y}\nGp: ${item.raw?.x}\nDate: ${item.raw?.date || '-'}` : ''
-                    },
-                    label: function (context) {
-                        return false;
-                    }
-                }
-            },
-    crosshair: {
-        line: {
-          enabled: true,
-          color: '#F66',  // crosshair line color
-          width: 1        // crosshair line width
-        },
-        sync: {
-          enabled: true,            // enable trace line syncing with other charts
-          group: 1,                 // chart group
-          suppressTooltips: false   // suppress tooltips when showing a synced tracer
-        },
-        zoom: {
-          enabled: false,                                      // enable zooming
-          zoomboxBackgroundColor: 'rgba(66,133,244,0.2)',     // background color of zoom box
-          zoomboxBorderColor: '#48F',                         // border color of zoom box
-          zoomButtonText: 'Reset Zoom',                       // reset zoom button text
-          zoomButtonClass: 'reset-zoom',                      // reset zoom button class
-        },
-      }
-  }
-});
-
-
-
-
-
-// Progressive data update
 onMounted(() => {
 });
 </script>
 
 <template>
-  <h1>Chart Js</h1>
-  <span>Graph with vue-chart-3 (3.1.8) and chart.js (3.9.1) on Vue.js 3</span>
+    <h1>Chart Js</h1>
+    <span>Graph with vue-chart-3 (3.1.8) and chart.js (3.9.1) on Vue.js 3</span>
     <div class="chart-container">
-      <ScatterChart v-if="chartData0" :chartData="chartData0" :options="options0" :width="1200" :height="500" :plugins="[lineMarker]"/>
-    </div>
-
-    <!-- Container for LineChart 1 -->
-    <div class="chart-container">
-      <LineChart v-if="chartData1" :chartData="chartData1" :options="options1" :width="1200" :height="500"/>
-    </div>
-
-    <!-- Container for LineChart 2 -->
-    <div class="chart-container">
-      <LineChart v-if="chartData2" :chartData="chartData2" :options="options2" :width="1200" :height="500" />
+        <ScatterChartComponent :config="scatterGraphConfig" :hover="(move, chart) => hover(move, chart, chart2.value, chart3.value)" chartId="myChart1" @updateRef="handleRefReceive" />
+        <LineChartComponent :config="lineGraphConfig1" :hover="(move, chart) => hover(move, chart, chart1.value, chart3.value)" chartId="myChart2" @updateRef="handleRefReceive" />
+        <LineChartComponent :config="lineGraphConfig2" :hover="(move, chart) => hover(move, chart, chart1.value, chart2.value)" chartId="myChart3" @updateRef="handleRefReceive" />
     </div>
 </template>
-
-<style scoped>
-h1 {
-  text-align: center;
-}
-
-</style>
