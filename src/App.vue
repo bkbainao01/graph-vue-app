@@ -1,8 +1,25 @@
 <script setup>
 import { onMounted, ref } from 'vue';
-import { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, LineController, ScatterController } from 'chart.js';
+import {
+    Chart,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    LineController,
+    ScatterController,
+    Filler,
+    SubTitle,
+    Decimation
+} from 'chart.js';
 import ScatterChartComponent from './components/ScatterChartComponent.vue';
 import LineChartComponent from './components/LineChartComponent.vue';
+import { useRefStore } from './stores/refs';
+import { storeToRefs } from "pinia";
+
 
 Chart.register(
   CategoryScale,
@@ -14,7 +31,13 @@ Chart.register(
   Legend,
   LineController,
   ScatterController,
+  Filler,
+  SubTitle,
+  Decimation
 );
+const refStore = useRefStore()
+const { refChart1, refChart2, refChart3 } = storeToRefs(refStore);
+console.log("🚀 ~ refChart1, refChart2, refChart3:", refChart1, refChart2, refChart3)
 
 const sortData = (list1 = [], list2 = []) => {
     const list = [...list1, ...list2];
@@ -290,18 +313,9 @@ const lineGraphConfig2 = createChartConfig('line', [
     { borderColor: 'grey', borderWidth: 1, radius: 0, data: data2, label: 'WGR2', fill: false, backgroundColor: 'grey', display: false }
 ], lineGraphOptions, [hoverLine]);
 
-const chart1 = ref(null);
-const chart2 = ref(null);
-const chart3 = ref(null);
-
-const handleRefReceive = (evt)=>{
-console.log("🚀 ~ handleRefReceive ~ evt:", evt)
-
-}
-
-
 const hover = (move, chartP1, chartP2, chartP3) => {
-    console.log("🚀 ~ hover ~ move, chartP1, chartP2, chartP3:", move, chartP1, chartP2, chartP3)
+    if (!chartP1 || !chartP2 || !chartP3) return;
+
     const points = chartP1.getElementsAtEventForMode(move, 'nearest', { intersect: true }, true);
     if (points[0]) {
         const dataset = points[0].datasetIndex;
@@ -333,8 +347,20 @@ onMounted(() => {
     <h1>Chart Js</h1>
     <span>Graph with vue-chart-3 (3.1.8) and chart.js (3.9.1) on Vue.js 3</span>
     <div class="chart-container">
-        <ScatterChartComponent :config="scatterGraphConfig" :hover="(move, chart) => hover(move, chart, chart2.value, chart3.value)" chartId="myChart1" @updateRef="handleRefReceive" />
-        <LineChartComponent :config="lineGraphConfig1" :hover="(move, chart) => hover(move, chart, chart1.value, chart3.value)" chartId="myChart2" @updateRef="handleRefReceive" />
-        <LineChartComponent :config="lineGraphConfig2" :hover="(move, chart) => hover(move, chart, chart1.value, chart2.value)" chartId="myChart3" @updateRef="handleRefReceive" />
+        <ScatterChartComponent
+            :config="scatterGraphConfig"
+            @hoverOnMouseMove="(move, chart) => hover(move, chart, refChart2.value, refChart3.value)"
+            chartId="myChart1"
+        />
+        <LineChartComponent
+            :config="lineGraphConfig1"
+            @hoverOnMouseMove="(move, chart) => hover(move, chart, refChart1.value, refChart3.value)"
+            chartId="myChart2"
+        />
+        <LineChartComponent
+            :config="lineGraphConfig2"
+            @hoverOnMouseMove="(move, chart) => hover(move, chart, refChart1.value, refChart2.value)"
+            chartId="myChart3"
+        />
     </div>
 </template>
