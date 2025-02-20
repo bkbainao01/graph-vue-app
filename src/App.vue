@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted } from 'vue';
 import {
     Chart,
     CategoryScale,
@@ -15,29 +15,21 @@ import {
     SubTitle,
     Decimation
 } from 'chart.js';
-import ScatterChartComponent from './components/ScatterChartComponent.vue';
-import LineChartComponent from './components/LineChartComponent.vue';
-import { useRefStore } from './stores/refs';
-import { storeToRefs } from "pinia";
-
 
 Chart.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  LineController,
-  ScatterController,
-  Filler,
-  SubTitle,
-  Decimation
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    LineController,
+    ScatterController,
+    Filler,
+    SubTitle,
+    Decimation
 );
-const refStore = useRefStore()
-const { refChart1, refChart2, refChart3 } = storeToRefs(refStore);
-console.log("🚀 ~ refChart1, refChart2, refChart3:", refChart1, refChart2, refChart3)
 
 const sortData = (list1 = [], list2 = []) => {
     const list = [...list1, ...list2];
@@ -237,8 +229,8 @@ const scatterGraphOptions = {
 const lineGraphOptions = {
     responsive: false,
     aspectRatio: 2,
-    maintainAspectRatio: false,
     devicePixelRatio: 4,
+    maintainAspectRatio: false,
     animation,
     interaction: {
         mode: 'nearest',
@@ -314,32 +306,41 @@ const lineGraphConfig2 = createChartConfig('line', [
 ], lineGraphOptions, [hoverLine]);
 
 const hover = (move, chartP1, chartP2, chartP3) => {
-    if (!chartP1 || !chartP2 || !chartP3) return;
-
     const points = chartP1.getElementsAtEventForMode(move, 'nearest', { intersect: true }, true);
     if (points[0]) {
         const dataset = points[0].datasetIndex;
         const datapoints = points[0].index;
 
-        chartP2?.tooltip.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
-        chartP2?.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
-        chartP2?.update();
+        chartP2.tooltip.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP2.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP2.update();
 
-        chartP3?.tooltip.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
-        chartP3?.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
-        chartP3?.update();
+        chartP3.tooltip.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP3.setActiveElements([{ datasetIndex: dataset, index: datapoints }]);
+        chartP3.update();
     } else {
-        chartP2?.tooltip.setActiveElements([], { x: 0, y: 0 });
-        chartP2?.setActiveElements([], { x: 0, y: 0 });
-        chartP2?.update();
+        chartP2.tooltip.setActiveElements([], { x: 0, y: 0 });
+        chartP2.setActiveElements([], { x: 0, y: 0 });
+        chartP2.update();
 
-        chartP3?.tooltip.setActiveElements([], { x: 0, y: 0 });
-        chartP3?.setActiveElements([], { x: 0, y: 0 });
-        chartP3?.update();
+        chartP3.tooltip.setActiveElements([], { x: 0, y: 0 });
+        chartP3.setActiveElements([], { x: 0, y: 0 });
+        chartP3.update();
     }
 };
 
 onMounted(() => {
+
+    const ctx1 = document.getElementById("myChart1");
+    const ctx2 = document.getElementById("myChart2");
+    const ctx3 = document.getElementById("myChart3");
+
+    const chart1 = new Chart(ctx1, scatterGraphConfig);
+    chart1.canvas.onmousemove = (event) => hover(event, chart1, chart2, chart3);
+    const chart2 = new Chart(ctx2, lineGraphConfig1);
+    chart2.canvas.onmousemove = (event) => hover(event, chart2, chart1, chart3);
+    const chart3 = new Chart(ctx3, lineGraphConfig2);
+    chart3.canvas.onmousemove = (event) => hover(event, chart3, chart1, chart2);
 });
 </script>
 
@@ -347,20 +348,11 @@ onMounted(() => {
     <h1>Chart Js</h1>
     <span>Graph with vue-chart-3 (3.1.8) and chart.js (3.9.1) on Vue.js 3</span>
     <div class="chart-container">
-        <ScatterChartComponent
-            :config="scatterGraphConfig"
-            @hoverOnMouseMove="(move, chart) => hover(move, chart, refChart2.value, refChart3.value)"
-            chartId="myChart1"
-        />
-        <LineChartComponent
-            :config="lineGraphConfig1"
-            @hoverOnMouseMove="(move, chart) => hover(move, chart, refChart1.value, refChart3.value)"
-            chartId="myChart2"
-        />
-        <LineChartComponent
-            :config="lineGraphConfig2"
-            @hoverOnMouseMove="(move, chart) => hover(move, chart, refChart1.value, refChart2.value)"
-            chartId="myChart3"
-        />
+        <canvas id="myChart1"
+            style="margin-left: auto; margin-right: auto; width: 1000px; height: 600px;" />
+        <canvas id="myChart2"
+            style="margin-left: auto; margin-right: auto; width: 1000px; height: 600px;" />
+        <canvas id="myChart3"
+            style="margin-left: auto; margin-right: auto; width: 1000px; height: 600px;" />
     </div>
 </template>
